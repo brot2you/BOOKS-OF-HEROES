@@ -429,6 +429,9 @@ body.fx-still *{animation:none!important}
 .dys-panel .panel-x{position:absolute;right:2.6cqw;top:2.4cqw;min-height:0;width:8cqw;height:8cqw;padding:0;border:0;border-radius:50%;background:rgba(60,40,10,.1);color:#3a2a14;font-size:3.6cqw;line-height:1}
 @media (prefers-reduced-motion:reduce){.mote,.scene-inner .scene-svg,.lantern-glow{animation:none!important}}
 
+/* ---- app width follows the size setting (phones stay full width) ---- */
+.app{width:min(100vw,var(--app-w,512px));max-width:var(--app-w,512px)}
+
 </style>
 </head>
 <body>
@@ -5278,6 +5281,28 @@ function buildFxPanel(){
 }
 buildFxPanel();
 
+/* ---------------- app size (computer screens) ---------------- */
+function applyAppSize(){
+  var w = state.settings.appW;
+  if(!w){ w = (window.innerWidth >= 900 && window.innerHeight >= 620) ? 680 : 512; }
+  document.documentElement.style.setProperty("--app-w", w + "px");
+  var btns = dysPanel.querySelectorAll("[data-appw]");
+  for(var i=0;i<btns.length;i++){ btns[i].classList.toggle("active", +btns[i].getAttribute("data-appw") === w); }
+}
+function buildSizePanel(){
+  var g = document.createElement("div"); g.className = "dys-group size-group";
+  g.innerHTML = "<div class=\"dys-group-label\">Taille de l\u2019application (ordinateur)</div><div class=\"dys-row\"><button data-appw=\"512\">Normale</button><button data-appw=\"680\">Grande</button><button data-appw=\"860\">Tr\u00e8s grande</button></div>";
+  var fxg = dysPanel.querySelector(".fx-group");
+  dysPanel.insertBefore(g, fxg ? fxg.nextSibling : dysPanel.firstChild);
+  var btns = g.querySelectorAll("[data-appw]");
+  for(var i=0;i<btns.length;i++){
+    btns[i].addEventListener("click", function(e){ state.settings.appW = +e.currentTarget.getAttribute("data-appw"); saveState(); applyAppSize(); });
+  }
+  applyAppSize();
+  window.addEventListener("resize", function(){ if(!state.settings.appW){ applyAppSize(); } });
+}
+buildSizePanel();
+
 /* ---------------- 3D book ---------------- */
 var COVERS = [
   {b:"#0a5666", d:"#053540", l:"#2a8a9a"}, {b:"#c8492e", d:"#7e2414", l:"#ee8058"}, {b:"#4a5e3c", d:"#27361f", l:"#86a06c"},
@@ -5331,10 +5356,12 @@ function openCover(bookId, srcEl){
   var idx = DATA.books.indexOf(book), col = COVERS[idx % COVERS.length];
   var appR = appEl.getBoundingClientRect(), sr = srcEl.getBoundingClientRect();
   var AW = appR.width, AH = appR.height;
-  var Wc = Math.min(AW * 0.60, 290), Hc = Wc / 0.70;
-  if(Hc > AH * 0.50){ Hc = AH * 0.50; Wc = Hc * 0.70; }
+  var visTop = Math.max(0, -appR.top), visH = Math.min(AH - visTop, window.innerHeight);
+  var panelH = AW * 0.39, panelTopY = visTop + visH - visH * 0.05 - panelH, topLimit = visTop + visH * 0.11, avail = panelTopY - 14 - topLimit;
+  var Wc = AW * 0.58, Hc = Wc / 0.70;
+  if(Hc > avail){ Hc = avail; Wc = Hc * 0.70; }
   var s0 = sr.height / Hc, Dc = sr.width / s0, P = 1500;
-  var ax = AW / 2, ay = AH * 0.40;
+  var ax = AW / 2, ay = topLimit + avail / 2;
   var dx = (sr.left - appR.left + sr.width / 2) - ax, dy = (sr.top - appR.top + sr.height / 2) - ay;
   var bs = bookState(book.id), total = countEndings(book), started = !!bs.currentNode;
   var scn = sceneFor(book.id, book.start);
@@ -5354,6 +5381,8 @@ function openCover(bookId, srcEl){
   ov.innerHTML = h;
   appEl.appendChild(ov);
 
+  var pnl = ov.querySelector(".bk-panel"); pnl.style.bottom = (AH - (visTop + visH) + visH * 0.05) + "px";
+  ov.querySelector(".bk-back").style.top = (visTop + visH * 0.03) + "px"; ov.querySelector(".bk-opts").style.top = (visTop + visH * 0.03) + "px";
   var b3 = ov.querySelector(".bk3d"), spineHost = ov.querySelector(".bk-spineface");
   /* the spine: exact copy of the shelf book, scaled so it matches pixel for pixel */
   var clone = srcEl.cloneNode(true); clone.removeAttribute("data-book"); clone.removeAttribute("aria-label"); clone.removeAttribute("id");
@@ -5384,8 +5413,7 @@ function openCover(bookId, srcEl){
   setTimeout(function(){
     if(!cover){ return; }
     cover.phase = "ready"; ov.classList.add("ready");
-    var cx = AW / 2, cy = AH * 0.40;
-    Sparks.burst(cx, cy, 46, 110, 40); FX.sparkle(6);
+    Sparks.burst(AW / 2, ay, 46, 110, 40); FX.sparkle(6);
   }, T(1300));
 }
 
